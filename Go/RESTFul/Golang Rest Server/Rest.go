@@ -76,7 +76,7 @@ func getProdutos (w http.ResponseWriter, r *http.Request) {
 
 }
 
-// função que retorn o produro pelo ID para o navegador
+// função que retorna o produto pelo ID para o navegador
 func getProduto(w http.ResponseWriter, r *http.Request) {
 
   w.Header().Set("Content-Type", "application/json")
