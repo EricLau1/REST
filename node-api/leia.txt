@@ -1,0 +1,234 @@
+Node JS Api Rest
+
+comandos
+
+	iniciar o projeto:
+
+\> npm init -y
+
+	pacotes necessários para instalar:
+
+\> npm install express body-parser mongoose --save
+
+	necessario ter o MongoDB instalado. 
+
+	criar o arquivo 'server.js':
+
+
+const express = require('express');
+const bodyParser = require('body-parser');
+
+// create express app
+const app = express();
+
+// parse requests of content-type - application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: true }))
+
+// parse requests of content-type - application/json
+app.use(bodyParser.json())
+
+// Configuring the database
+const dbConfig = require('./config/database.config.js');
+const mongoose = require('mongoose');
+
+mongoose.Promise = global.Promise;
+
+// Conectando ao banco de dados
+mongoose.connect(dbConfig.url, { useNewUrlParser: true })
+.then(() => {
+    console.log("Banco de dados conectado com sucesso!");    
+}).catch(err => {
+    console.log('Erro ao conectar no banco. Saido agora...');
+    process.exit();
+});
+
+// definindo uma rota simples
+app.get('/', (req, res) => {
+    res.json({"message": "Olá mundo!"});
+});
+
+// chamando as rotas para usuarios
+require('./app/routes/user.routes')(app);
+
+// listen for requests
+app.listen(3000, () => {
+    console.log("Servidor iniciado na porta 3000");
+});
+
+
+
+	criar a pasta "config" e o arquivo 'database.config.js' dentro dela:
+
+
+module.exports = {
+    url: 'mongodb://localhost:27017/node-api'
+}
+
+
+	criar a pasta "app" e dentro dela a pasta "models". Crie o arquivo 'User.model.js' dentro da pasta "models":
+
+
+const mongoose = require('mongoose');
+
+const UserSchema = mongoose.Schema({
+    nome: String,
+    email: String
+}, {
+    timestamps: true
+});
+
+module.exports = mongoose.model('User', UserSchema);
+
+
+
+	criar a pasta "routes" dentro da pasta "app" e o arquivo 'user.routes.js' dentro da pasta "routes".
+
+
+module.exports = (app) => {
+    const users = require('../controllers/user.controller.js');
+
+    //  Criar novo usuario
+    app.post('/users', users.create);
+
+    // Listar usuarios
+    app.get('/users', users.findAll);
+
+    // Buscar usuario pelo Id gerado no mongoDB
+    app.get('/users/:id', users.findOne);
+
+    // Atualizar usuario pelo Id gerado no mongoDB
+    app.put('/users/:id', users.update);
+
+    // Deletar usuario pelo Id gerado no mongoDB
+    app.delete('/users/:id', users.delete);
+}
+
+
+	criar a pasta "controllers" dentro da pasta "app" e o arquivo 'user.controller.js' dentro dela.
+
+
+const User = require('../models/User.model.js');
+
+// Criar e salvar novo User
+exports.create = (req, res) => {
+    
+    // Validar requisição 
+    if(!req.body.nome) {
+        return res.status(400).send({
+            message: "Infelizmente ocorreu um erro... " + req.body.data
+        });
+    }
+
+    // Criando um usuario
+    const user = new User({
+        nome: req.body.nome, 
+        email: req.body.email || "email@email.com"
+    });
+
+    // salvando novo usuario no banco
+    user.save()
+    .then(data => {
+        res.send(data);
+    }).catch(err => {
+        res.status(500).send({
+            message: err.message || "Ocorreu um erro enquanto estava sendo salvo..."
+        });
+    });
+};
+
+// Listar todos os usuarios
+exports.findAll = (req, res) => {
+    User.find()
+    .then(users => {
+        res.send(users);
+    }).catch(err => {
+        res.status(500).send({
+            message: err.message || "Infelizmente ocorreu um erro. Por favor tente mais tarde..."
+        });
+    });
+};
+
+// procurar pelo Id
+exports.findOne = (req, res) => {
+    User.findById(req.params.id)
+    .then(user => {
+        if(!user) {
+            return res.status(404).send({
+                message: "Erro ao recuperar o id: " + req.params.id
+            });            
+        }
+        res.send(user);
+    }).catch(err => {
+        if(err.kind === 'ObjectId') {
+            return res.status(404).send({
+                message: "Não existe usuario com id: " + req.params.id
+            });                
+        }
+        return res.status(500).send({
+            message: "Erro ao recuperar o id: " + req.params.id
+        });
+    });
+};
+
+// atualizar pelo Id
+exports.update = (req, res) => {
+    // Validate Request
+    if(!req.body.nome) {
+        return res.status(400).send({
+            message: "Necessário informar o campo nome..."
+        });
+    }
+
+    // procura o usuario e atualiza com os novos dados
+    User.findByIdAndUpdate(req.params.id, {
+        nome: req.body.nome,
+        email: req.body.email || "email@email.com"
+    }, {new: true})
+    .then(user => {
+        if(!user) {
+            return res.status(404).send({
+                message: "usuario nao encontrado com id: " + req.params.id
+            });
+        }
+        res.send(user);
+    }).catch(err => {
+        if(err.kind === 'ObjectId') {
+            return res.status(404).send({
+                message: "Usuario nao encontrado com id: " + req.params.id
+            });                
+        }
+        return res.status(500).send({
+            message: "Erro ao atualizar o usuario com id: " + req.params.id
+        });
+    });
+};
+
+// deletar pelo id
+exports.delete = (req, res) => {
+
+    User.findByIdAndRemove(req.params.id)
+    .then(user => {
+        if(!user) {
+            return res.status(404).send({
+                message: "Usuario não encontrado com id: " + req.params.id
+            });
+        }
+        res.send({message: "usuario deletado com sucesso!"});
+    }).catch(err => {
+        if(err.kind === 'ObjectId' || err.name === 'NotFound') {
+            return res.status(404).send({
+                message: "Usuario não encontrado com id: " + req.params.id
+            });                
+        }
+        return res.status(500).send({
+            message: "Não possivel excluir usuario com id: " + req.params.id
+        });
+    });
+};
+
+
+	Após configurar todos os documentos.
+
+	É necessário mudar o cabeçalho do postman para application/json para que as requisições funcionem.
+
+	Quando for passar algum parametro por Id informar o _Id gerado pelo mongodb
