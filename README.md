@@ -1,1 +1,1 @@
-Rest na prática
+Apis Rest para estudar.
